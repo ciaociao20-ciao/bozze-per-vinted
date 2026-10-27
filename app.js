@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -101,6 +101,10 @@ async function loadSettings() {
   }
 }
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => typeof o[k] === 'string').map(k => [k, o[k]]));
+function rulesFromText(text) {
+  const m = String(text || '').match(/#regole=([A-Za-z0-9_\-]+)/); if (!m) return null;
+  try { const json = decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))); return { ...DEFAULTS, ...pick(JSON.parse(json), Object.keys(DEFAULTS)) }; } catch (e) { return null; }
+}
 function applyTemplate(t, ref) { return (t || '').split('{ref}').join(ref || ''); }
 
 /* ---------- Stato ---------- */
@@ -1047,6 +1051,11 @@ function bind() {
     try { await store.put('meta', { k: 'settings', v: settings }); toast('Valori salvati: valgono per le nuove bozze'); } catch (e) { toast('Valori non salvati, riprova'); }
     closeSheetNow();
   };
+  $('#sImport').addEventListener('input', e => {
+    const r = rulesFromText(e.target.value); if (!r) return;
+    $('#sCondition').value = r.condition; $('#sParcel').value = r.parcel; $('#sNoBrand').value = r.noBrand; $('#sTemplate').value = r.descTemplate;
+    e.target.value = ''; toast('Valori presi dal link: tocca Salva valori');
+  });
   $('#btnExport').onclick = () => openExport();
   $('#backupGo').onclick = () => openExport();
   $('#backupClose').onclick = () => { ss.set('bv-backup-off', '1'); $('#bannerBackup').hidden = true; };
