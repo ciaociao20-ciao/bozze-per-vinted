@@ -21,7 +21,7 @@
 <div class="wrap" id="listView">
   <header class="topbar">
     <h1>Bozze per Vinted <span class="sub" id="listSub">Tutto salvato in questo telefono</span></h1>
-    <button class="iconbtn" id="btnExport" aria-label="Esporta e importa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
+    <button class="iconbtn" id="btnExport" aria-label="Invia a Claude, esporta e importa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
     <button class="iconbtn" id="btnSettings" aria-label="Impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </header>
 
@@ -44,7 +44,7 @@
     <button class="chip" data-f="uploaded" aria-pressed="false">Su Vinted<b id="cUp">0</b></button>
   </div>
   <div class="cards" id="cards"></div>
-  <p class="note">Le bozze e le foto originali restano <b>nella memoria di questo telefono</b>, anche senza internet. Quando sono pronte le <b>esporti</b> (tasto in alto) e Claude le carica su Vinted per te.</p>
+  <p class="note">Le bozze e le foto originali restano <b>nella memoria di questo telefono</b>, anche senza internet. Quando sono pronte le <b>invii a Claude</b> (tasto in alto, tramite il tuo Google Drive) e lui le carica su Vinted per te dal computer.</p>
   <div class="meter" id="meter" hidden><span id="meterTxt"></span><div class="bar"><i id="meterBar"></i></div></div>
   <div class="fab"><button id="btnNew"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova bozza</button></div>
 </div>
@@ -209,7 +209,7 @@
 </div>
 
 <div class="sheet tall" id="shExport" role="dialog" aria-modal="true" aria-labelledby="shExportT">
-  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shExportT">Esporta per Claude</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shExportT">Invia a Claude</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="bd" id="exportBody"></div>
 </div>
 

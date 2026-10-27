@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.1.1';
+const VERSION = '1.1.2';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -753,7 +753,7 @@ function makeGroups() {
   exp.groups = groups;
 }
 function claudePrompt() {
-  return `Ho delle bozze di annunci preparate con l'app «Bozze per Vinted» (formato ${FORMAT}). Sono pacchetti ZIP, uno per articolo, che ho salvato qui: [SCRIVI DOVE LI HAI SALVATI, es. Google Drive › Bozze Vinted].
+  return `Ho delle bozze di annunci preparate con l'app «Bozze per Vinted» (formato ${FORMAT}). Sono pacchetti ZIP, uno per articolo, nella cartella «Bozze Vinted» del mio Google Drive (se li ho messi altrove lo scrivo qui: ...). Prendili da lì.
 
 Ogni ZIP contiene scheda.json (titolo, descrizione, categoria, brand, taglia, condizioni, colori, materiali, prezzo, dimensioni del pacco) e le foto originali foto-01.jpg, foto-02.jpg… già nell'ordine giusto (la 01 è la copertina).
 
@@ -774,13 +774,13 @@ function renderExport() {
     const bytes = selList.reduce((a, d) => a + estSize(d), 0);
     const nGroups = selList.length ? (() => { const save = exp.groups; makeGroups(); const n = exp.groups.length; exp.groups = save; return n; })() : 0;
     body.innerHTML = `
-      <p>Ogni bozza diventa un pacchetto ZIP con le <b>foto originali</b> e una scheda con tutti i campi. Salva i pacchetti dove Claude potrà prenderli: una cartella di <b>Google Drive</b>, <b>iCloud Drive</b> o il <b>computer</b> (AirDrop, cavo). Sono anche il tuo backup.</p>
+      <p>Ogni bozza diventa un pacchetto ZIP con le <b>foto originali</b> e una scheda con tutti i campi. Per inviarli a Claude, al momento di condividere scegli <b>Drive</b> e la cartella <b>«Bozze Vinted»</b> del tuo Google Drive: Claude li legge da lì (basta che Google Drive sia collegato al tuo account Claude). Vanno bene anche iCloud Drive o il computer. I pacchetti sono anche il tuo backup.</p>
       ${PREVIEW ? '<div class="banner warn"><div>Nell\'anteprima l\'esportazione è disattivata. Funziona nell\'app installata.</div></div>' : ''}
       <div class="sel-all"><span>${selList.length} selezionat${selList.length === 1 ? 'a' : 'e'} · ${fmtBytes(bytes)}${nGroups ? ` · ${nGroups} invi${nGroups === 1 ? 'o' : 'i'}` : ''}</span><span class="links"><button id="xReady">Pronte</button> · <button id="xAll">Tutte</button> · <button id="xNone">Nessuna</button></span></div>
       <div id="xList">${all.length ? all.map(d => { const s = statusOf(d); return `<button class="opt" role="checkbox" data-id="${esc(d.id)}" aria-checked="${exp.sel.has(d.id)}"><span class="mini">${d.photos[0] ? `<img data-tid="${esc(d.photos[0].id)}" alt="">` : ''}</span><span class="t">${esc(d.title || 'Senza titolo')}<small>${esc([d.ref, STATUS_LABEL[s], d.photos.length + ' foto', fmtBytes(estSize(d))].filter(Boolean).join(' · '))}</small></span><span class="check"></span></button>`; }).join('') : '<p>Nessuna bozza con foto da esportare.</p>'}</div>
       <div style="padding:12px 4px"><button class="btn" id="xGo" style="width:100%" ${selList.length && !PREVIEW ? '' : 'disabled'}>Prepara ${selList.length || ''} pacchett${selList.length === 1 ? 'o' : 'i'}</button></div>
-      <h4>Istruzioni per Claude</h4>
-      <p>Quando i pacchetti sono salvati, apri Claude nel browser del computer (con Claude in Chrome e Vinted già connesso) e incolla questo messaggio, completando il punto tra parentesi.</p>
+      <h4>Poi, dal computer</h4>
+      <p>Il caricamento su Vinted lo fa Claude in Chrome sul computer, con Vinted connesso nel browser. Apri Claude lì e incolla questo messaggio: il resto lo fa lui, un articolo alla volta.</p>
       <div class="prompt" id="xPrompt">${esc(claudePrompt())}</div>
       <div style="padding:4px 4px 12px"><button class="btn ghost" id="xCopy" style="width:100%">Copia istruzioni</button></div>
       <h4>Importa pacchetti</h4>
@@ -800,7 +800,7 @@ function renderExport() {
   // gruppi
   const total = exp.groups.length, done = exp.groups.filter(g => g.state === 'done').length;
   body.innerHTML = `
-    <p>${canShareFiles ? 'Tocca <b>Condividi</b> per ogni invio e scegli dove salvare: <b>Salva su File</b> (iCloud Drive o «Sul mio iPhone»), <b>Drive</b>, oppure AirDrop verso il computer.' : 'Tocca <b>Scarica</b> per ogni invio: i pacchetti finiscono nella cartella Download.'} Usa sempre la stessa cartella.</p>
+    <p>${canShareFiles ? 'Tocca <b>Condividi</b> per ogni invio, scegli <b>Drive</b> e la cartella <b>«Bozze Vinted»</b> (la prima volta creala). In alternativa <b>Salva su File</b> (iCloud Drive) o AirDrop verso il computer.' : 'Tocca <b>Scarica</b> per ogni invio: i pacchetti finiscono nella cartella Download, poi spostali nella cartella «Bozze Vinted» del tuo Google Drive.'} Usa sempre la stessa cartella.</p>
     <div class="sel-all"><span>${done} di ${total} invi${total === 1 ? 'o' : 'i'} completat${done === 1 ? 'o' : 'i'}</span><span><button id="xBack">Cambia selezione</button></span></div>
     ${exp.groups.map((g, i) => {
       const names = g.ids.map(id => drafts.get(id)).filter(Boolean).map(d => d.ref || d.title || 'bozza');
