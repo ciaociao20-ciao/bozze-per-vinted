@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bozze per Vinted</title>
+<meta name="description" content="Prepara le bozze degli annunci Vinted dal telefono, con foto originali salvate in locale. Open source, non affiliata a Vinted.">
+<meta name="theme-color" content="#f3f4f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f121a" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bozze Vinted">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!--APP-START-->
+<div class="wrap" id="listView">
+  <header class="topbar">
+    <h1>Bozze per Vinted <span class="sub" id="listSub">Tutto salvato in questo telefono</span></h1>
+    <button class="iconbtn" id="btnExport" aria-label="Esporta e importa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
+    <button class="iconbtn" id="btnSettings" aria-label="Impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <div id="bannerPreview" class="banner warn" hidden><div><b>Anteprima di prova.</b> Qui puoi provare il modulo, ma le bozze restano in questa finestra e l'esportazione è disattivata. Per lavorare davvero usa l'app installata dal suo indirizzo.</div></div>
+  <div id="bannerInstall" class="banner info" hidden>
+    <div><b>Installa l'app sul telefono.</b> <span id="installTxt"></span><br><button class="act" id="btnInstall" hidden>Installa</button></div>
+    <button class="x" id="installClose" aria-label="Chiudi avviso"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="bannerStorage" class="banner warn" hidden></div>
+  <div id="bannerBackup" class="banner info" hidden>
+    <div><span id="backupTxt"></span><br><button class="act" id="backupGo">Esporta ora</button></div>
+    <button class="x" id="backupClose" aria-label="Chiudi avviso"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+
+  <div class="chips" id="chips" role="group" aria-label="Filtra bozze">
+    <button class="chip" data-f="all" aria-pressed="true">Tutte<b id="cAll">0</b></button>
+    <button class="chip" data-f="draft" aria-pressed="false">Incomplete<b id="cDraft">0</b></button>
+    <button class="chip" data-f="ready" aria-pressed="false">Pronte<b id="cReady">0</b></button>
+    <button class="chip" data-f="exported" aria-pressed="false">Esportate<b id="cExp">0</b></button>
+    <button class="chip" data-f="uploaded" aria-pressed="false">Su Vinted<b id="cUp">0</b></button>
+  </div>
+  <div class="cards" id="cards"></div>
+  <p class="note">Le bozze e le foto originali restano <b>nella memoria di questo telefono</b>, anche senza internet. Quando sono pronte le <b>esporti</b> (tasto in alto) e Claude le carica su Vinted per te.</p>
+  <div class="meter" id="meter" hidden><span id="meterTxt"></span><div class="bar"><i id="meterBar"></i></div></div>
+  <div class="fab"><button id="btnNew"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova bozza</button></div>
+</div>
+
+<div class="wrap" id="editorView" hidden>
+  <header class="topbar">
+    <button class="back" id="btnBack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Bozze</button>
+    <span class="savebadge" id="saveBadge"></span>
+    <button class="iconbtn" id="btnMenu" aria-label="Altre azioni"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+  </header>
+
+  <section class="section" aria-labelledby="hPhotos">
+    <h2 id="hPhotos">Foto <span id="photoCount"></span></h2>
+    <button class="addbig" id="addBig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Carica foto<small>Aggiungi fino a 20 foto · la prima è la copertina</small></button>
+    <div class="photos" id="photos" hidden></div>
+    <div class="photoactions" id="photoActions" hidden>
+      <button id="paCover">Metti come copertina</button>
+      <button id="paLeft" aria-label="Sposta a sinistra">◀ Sposta</button>
+      <button id="paRight" aria-label="Sposta a destra">Sposta ▶</button>
+      <button id="paDel" class="del">Elimina</button>
+    </div>
+    <div class="photoinfo" id="photoInfo" hidden></div>
+    <input type="file" id="fileInput" accept="image/*" multiple class="sr" tabindex="-1" aria-hidden="true">
+  </section>
+
+  <section class="section">
+    <div class="field">
+      <label class="lbl" for="fRef">Referenza <span style="color:var(--muted)">(uso interno, finisce nella descrizione)</span></label>
+      <input class="txt" id="fRef" placeholder="es. #T120" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:var(--mono)">
+    </div>
+    <div class="field">
+      <label class="lbl" for="fTitle">Titolo <span class="req">*</span></label>
+      <input class="txt" id="fTitle" placeholder="es. Camicia Polo Ralph Lauren a righe" maxlength="100" autocomplete="off">
+      <span class="count" id="cTitle">0/100</span>
+    </div>
+    <div class="field">
+      <label class="lbl" for="fDesc">Descrivi il tuo articolo <span class="req">*</span></label>
+      <textarea class="txt" id="fDesc" placeholder="es. indossata poche volte, taglia giusta" maxlength="3000"></textarea>
+      <span class="count" id="cDesc">0/3000</span>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="hInfo">
+    <h2 id="hInfo">Informazioni sull'articolo</h2>
+    <button class="row" id="rCategory"><span class="k">Categoria</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="row" id="rBrand"><span class="k">Brand</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="row" id="rSize" hidden><span class="k">Taglia</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="row" id="rCondition"><span class="k">Condizioni</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="row" id="rColor"><span class="k">Colore</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <button class="row" id="rMaterial"><span class="k">Materiale <small>(facoltativo)</small></span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+    <div class="field switch">
+      <label for="fUnisex">Unisex</label>
+      <input type="checkbox" id="fUnisex">
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="field">
+      <label class="lbl" for="fPrice">Prezzo <span class="req">*</span></label>
+      <div class="price"><span class="cur">€</span><input class="txt" id="fPrice" inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+      <div class="hint">Minimo 1,00 €.</div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="hParcel">
+    <h2 id="hParcel">Dimensioni del pacco</h2>
+    <button class="row" id="rParcel"><span class="k">Pacco</span><span class="v ph">Seleziona</span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button>
+  </section>
+
+  <section class="section" id="stateBox" hidden>
+    <div class="field"><span class="lbl" id="stateLbl"></span><div id="stateTxt" style="font-size:14px"></div></div>
+  </section>
+
+  <div class="statusbar"><div class="in"><div class="txt" id="statusTxt"></div><button class="btn" id="btnDone">Fatto</button></div></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet tall" id="shCategory" role="dialog" aria-modal="true" aria-labelledby="shCategoryT">
+  <div class="hd"><span class="grab"></span><button class="iconbtn" id="catBack" aria-label="Indietro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h3 id="shCategoryT">Categoria</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd"><input class="search" id="catSearch" placeholder="Cerca categoria (es. jeans, felpa, sneakers)" autocomplete="off"><div class="crumb" id="catCrumb"></div><div id="catList"></div></div>
+</div>
+
+<div class="sheet" id="shSize" role="dialog" aria-modal="true" aria-labelledby="shSizeT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shSizeT">Taglia</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="sizeList"></div>
+</div>
+
+<div class="sheet tall" id="shBrand" role="dialog" aria-modal="true" aria-labelledby="shBrandT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shBrandT">Brand</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd"><input class="search" id="brandSearch" placeholder="Cerca o scrivi il brand" autocomplete="off" autocapitalize="words"><div id="brandList"></div></div>
+</div>
+
+<div class="sheet" id="shCondition" role="dialog" aria-modal="true" aria-labelledby="shConditionT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shConditionT">Condizioni</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="conditionList"></div>
+</div>
+
+<div class="sheet tall" id="shColor" role="dialog" aria-modal="true" aria-labelledby="shColorT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shColorT">Colore · fino a 2</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="colorList"></div>
+  <div class="ft"><button class="btn" data-close>Fatto</button></div>
+</div>
+
+<div class="sheet tall" id="shMaterial" role="dialog" aria-modal="true" aria-labelledby="shMaterialT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shMaterialT">Materiale · fino a 3</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="materialList"></div>
+  <div class="ft"><button class="btn ghost" id="matClear">Nessuno</button><button class="btn" data-close>Fatto</button></div>
+</div>
+
+<div class="sheet" id="shParcel" role="dialog" aria-modal="true" aria-labelledby="shParcelT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shParcelT">Dimensioni del pacco</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="parcelList"></div>
+</div>
+
+<div class="sheet" id="shMenu" role="dialog" aria-modal="true" aria-label="Azioni bozza">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3>Bozza</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd">
+    <button class="menuopt" id="mExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Esporta solo questa bozza</button>
+    <button class="menuopt" id="mCopyTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>Copia titolo</button>
+    <button class="menuopt" id="mCopyDesc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>Copia descrizione</button>
+    <button class="menuopt" id="mDup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Duplica (senza foto)</button>
+    <button class="menuopt" id="mUploaded"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg><span id="mUploadedTxt">Segna come caricata su Vinted</span></button>
+    <button class="menuopt danger" id="mDel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Elimina bozza</button>
+  </div>
+</div>
+
+<div class="sheet" id="shConfirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="confirmT">Conferma</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd"><p id="confirmP"></p></div>
+  <div class="ft"><button class="btn ghost" data-close>Annulla</button><button class="btn danger" id="confirmOk">Elimina</button></div>
+</div>
+
+<div class="sheet tall" id="shSettings" role="dialog" aria-modal="true" aria-labelledby="shSettingsT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shSettingsT">Impostazioni</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd">
+    <h4>Valori di partenza delle nuove bozze</h4>
+    <p>Ogni nuova bozza parte con questi valori. Puoi sempre cambiarli bozza per bozza.</p>
+    <div class="f"><label for="sCondition">Condizioni</label><select id="sCondition"></select></div>
+    <div class="f"><label for="sParcel">Dimensioni del pacco</label><select id="sParcel"></select></div>
+    <div class="f"><label for="sNoBrand">Brand da usare per gli articoli senza marca</label><input id="sNoBrand" autocomplete="off" placeholder="Nessun brand"></div>
+    <div class="f"><label for="sTemplate">Modello della descrizione · <code>{ref}</code> diventa la referenza</label><textarea id="sTemplate"></textarea></div>
+    <div class="f"><button class="btn" id="sSave" style="width:100%">Salva valori</button></div>
+    <h4>Memoria del telefono</h4>
+    <div class="kv"><span>Bozze</span><span id="stDrafts">–</span></div>
+    <div class="kv"><span>Foto salvate</span><span id="stPhotos">–</span></div>
+    <div class="kv"><span>Spazio usato dall'app</span><span id="stUsage">–</span></div>
+    <div class="kv"><span>Spazio disponibile per l'app</span><span id="stQuota">–</span></div>
+    <div class="kv"><span>Memoria protetta dalla pulizia automatica</span><span id="stPersist">–</span></div>
+    <p>Le bozze vivono solo in questo telefono e in quest'app. Se cancelli i dati del browser o rimuovi l'app dalla Home, vengono cancellate: esporta spesso, i pacchetti esportati sono anche il tuo backup.</p>
+    <h4>Informazioni</h4>
+    <p>Bozze per Vinted è un progetto open source (licenza MIT) <b>non affiliato a Vinted</b>. Nessun account, nessun server: i dati non lasciano il telefono finché non li esporti tu. <span id="appVersion"></span></p>
+  </div>
+</div>
+
+<div class="sheet tall" id="shExport" role="dialog" aria-modal="true" aria-labelledby="shExportT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shExportT">Esporta per Claude</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd" id="exportBody"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!--APP-END-->
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
