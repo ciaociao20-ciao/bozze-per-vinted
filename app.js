@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -277,7 +277,7 @@ function renderEditor() {
   if (s === 'uploaded') { $('#stateLbl').textContent = 'Caricata su Vinted'; $('#stateTxt').textContent = (d.uploadedAt ? 'Segnata il ' + new Date(d.uploadedAt).toLocaleDateString('it-IT') + '. ' : '') + 'Le modifiche fatte qui non arrivano su Vinted.'; }
   else if (d.exportedAt) { $('#stateLbl').textContent = 'Esportazione'; $('#stateTxt').textContent = 'Esportata il ' + new Date(d.exportedAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + (s === 'exported' ? '.' : '. L\'hai modificata dopo: esportala di nuovo.'); }
   $('#mUploadedTxt').textContent = d.status === 'uploaded' ? 'Riporta tra le bozze' : 'Segna come caricata su Vinted';
-  renderPhotos(); renderStatus();
+  renderPhotos(); renderStatus(); renderTagHints();
 }
 function updCount(sel, n, max) { const e = $(sel); e.textContent = n + '/' + max; e.classList.toggle('over', n >= max); }
 function autoGrow(t) { t.style.height = 'auto'; t.style.height = Math.max(120, t.scrollHeight + 2) + 'px'; }
@@ -455,6 +455,188 @@ function renderRadioSheet(listId, data, get, set) {
   $$('#' + listId + ' [data-i]').forEach(b => b.onclick = () => { set(data[+b.dataset.i][0]); touch(); renderEditor(); closeSheetNow(); });
 }
 function askConfirm(title, text, okLabel, cb) { $('#confirmT').textContent = title; $('#confirmP').textContent = text; $('#confirmOk').textContent = okLabel; confirmCb = cb; openSheet('shConfirm'); }
+
+/* ---------- Tag nel titolo e hashtag nella descrizione ---------- */
+const tagOf = s => String(s || '').replace(/^#+/, '').normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, '');
+const tkey = s => tagOf(s).toLowerCase();
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PHRASE_BY_KEY = new Map();
+TAG_GROUPS.forEach(g => g.items.forEach(p => { const k = tkey(p); if (k && !PHRASE_BY_KEY.has(k)) PHRASE_BY_KEY.set(k, p); }));
+const titleForm = p => p.split(' ').map(w => TITLE_CASE[w.toLowerCase()] || w).join(' ');
+const ALL_TAG_KEYS = new Set([...PHRASE_BY_KEY.keys(), ...TAG_PRESETS.flatMap(p => p.tags.map(tkey))]);
+const BRAND_KEYS = (() => { const m = new Map(); for (const b of BRANDS) { const k = tkey(b); if (k.length >= 4 && !ALL_TAG_KEYS.has(k) && k !== 'nessunbrand') m.set(k, b); } m.set('arcteryx', "Arc'teryx"); m.set('tnf', 'The North Face'); return m; })();
+function brandOfKey(k) {
+  if (BRAND_KEYS.has(k)) return BRAND_KEYS.get(k);
+  for (const [bk, b] of BRAND_KEYS) if (bk.length >= 5 && k.startsWith(bk) && /^\d+$/.test(k.slice(bk.length))) return b;
+  return null;
+}
+function brandOk(b, d) { const dk = tkey(d.brand), bk = tkey(b); return !!dk && (dk.includes(bk) || bk.includes(dk)); }
+function foreignBrands(d) {
+  const out = new Set();
+  const words = (d.title || '').split(/\s+/).filter(Boolean);
+  for (let n = 1; n <= 3; n++) for (let i = 0; i + n <= words.length; i++) { const b = brandOfKey(tkey(words.slice(i, i + n).join(''))); if (b && !brandOk(b, d)) out.add(b); }
+  for (const t of descSplit(d.description).tags) { const b = brandOfKey(tkey(t)); if (b && !brandOk(b, d)) out.add(b); }
+  return [...out];
+}
+const HLINE = '(?:[ \\t]*#[^\\s#]+)+[ \\t]*';
+const HBLOCK = new RegExp(`(^|\\n[ \\t]*\\n)(${HLINE}(?:\\n${HLINE})*)\\s*$`, 'u');
+function descSplit(desc) {
+  const m = (desc || '').match(HBLOCK);
+  if (!m) return { body: (desc || '').replace(/\s+$/, ''), tags: [] };
+  return { body: desc.slice(0, m.index + m[1].length).replace(/\s+$/, ''), tags: m[2].match(/#[^\s#]+/gu).map(t => t.slice(1)) };
+}
+function descJoin(body, tags) { return tags.length ? (body ? body + '\n\n' : '') + tags.map(t => '#' + t).join(' ') : body; }
+function setDescTags(tags) {
+  const d = cur, s = descSplit(d.description), seen = new Set(), clean = [];
+  for (const t of tags) { const v = tagOf(t), k = v.toLowerCase(); if (v && !seen.has(k)) { seen.add(k); clean.push(v); } }
+  const nd = descJoin(s.body, clean);
+  if (nd.length > LIMITS.desc) { toast('La descrizione supererebbe i 3000 caratteri'); return false; }
+  d.description = nd; $('#fDesc').value = nd; updCount('#cDesc', nd.length, LIMITS.desc); autoGrow($('#fDesc')); touch(); renderTagHints();
+  return true;
+}
+function titleHas(phrase) { return new RegExp(`(^|\\s)${reEsc(phrase)}(?=\\s|$)`, 'iu').test(cur.title); }
+function titleToggle(phrase) {
+  const d = cur;
+  if (titleHas(phrase)) d.title = d.title.replace(new RegExp(`(^|\\s)${reEsc(phrase)}(?=\\s|$)`, 'iu'), ' ').replace(/\s{2,}/g, ' ').trim();
+  else { const t = (d.title.trim() + ' ' + titleForm(phrase)).trim(); if (t.length > LIMITS.title) { toast('Il titolo supererebbe i 100 caratteri'); return; } d.title = t; }
+  $('#fTitle').value = d.title; updCount('#cTitle', d.title.length, LIMITS.title); touch(); renderTagHints();
+}
+function presetScore(p, d) {
+  const m = p.match || {}, path = d.category ? d.category.path : [], cat = path.join(' › '), leaf = path[path.length - 1] || '';
+  if (m.section && path[0] !== m.section) return 0;
+  let s = 0;
+  if (m.cat && (m.cat.test(leaf) || m.cat.test(cat))) s += 2;
+  if (m.brand && m.brand.test(d.brand || '')) s += 2;
+  if (m.title && m.title.test(d.title || '')) s += 1;
+  return s;
+}
+function presetTags(p, d) {
+  const extra = (p.brandTags || []).filter(b => b.brand.test(d.brand || '') && (!b.title || b.title.test(d.title || ''))).flatMap(b => b.tags);
+  return [...extra, ...p.tags];
+}
+function presetsFor(d) {
+  const scored = TAG_PRESETS.map(p => ({ p, s: presetScore(p, d) }));
+  const best = Math.max(0, ...scored.map(x => x.s));
+  return scored.sort((a, b) => b.s - a.s).map(x => ({ ...x.p, recommended: best > 0 && x.s === best }));
+}
+let tagMode = 'title', userSets = [], tagSaving = false;
+const tagOpenGroups = new Set();
+async function loadUserSets() { try { const r = await store.get('meta', 'tagsets'); userSets = (r && Array.isArray(r.v)) ? r.v : []; } catch (e) { userSets = []; } }
+async function saveUserSets() { try { await store.put('meta', { k: 'tagsets', v: userSets }); } catch (e) { toast('Blocco non salvato, riprova'); } }
+function renderTagHints() {
+  const d = cur; if (!d) return;
+  const n = descSplit(d.description).tags.length;
+  $('#btnDescTags').innerHTML = `<b>#</b> Hashtag${n ? ` · ${n}` : ''}`;
+  const fb = foreignBrands(d), w = $('#tagWarn');
+  if (fb.length) { w.hidden = false; w.textContent = `Attenzione: c'è il nome di un altro brand (${fb.join(', ')}). Vinted può rimuovere l'annuncio: lascia solo il brand del capo.`; }
+  else if (n > 40) { w.hidden = false; w.textContent = `${n} hashtag: oltre 40 rischi che l'annuncio sembri spam.`; }
+  else w.hidden = true;
+}
+function chip(phrase, on, extraCls = '') {
+  const k = tkey(phrase); const label = tagMode === 'title' ? titleForm(phrase) : '#' + tagOf(phrase);
+  return `<button class="tchip ${extraCls}" data-k="${esc(k)}" data-p="${esc(phrase)}" aria-pressed="${on}">${esc(label)}</button>`;
+}
+function openTags(mode) { tagMode = mode; tagSaving = false; $('#tagSearch').value = ''; openSheet('shTags'); renderTags(); $('.bd', $('#shTags')).scrollTop = 0; }
+function isOn(phrase) { return tagMode === 'title' ? titleHas(phrase) : descSplit(cur.description).tags.some(t => t.toLowerCase() === tkey(phrase)); }
+function renderTags() {
+  const d = cur; if (!d) return;
+  const q = $('#tagSearch').value.trim(), qk = tkey(q);
+  $('#shTagsT').textContent = tagMode === 'title' ? 'Tag nel titolo' : 'Hashtag nella descrizione';
+  $('#tagSearch').placeholder = tagMode === 'title' ? 'Cerca un tag o scrivine uno tuo' : 'Cerca un hashtag o scrivine uno tuo';
+  const presets = presetsFor(d), rec = presets.find(p => p.recommended);
+  let h = '';
+  if (tagMode === 'title') {
+    h += `<p class="tip">Vinted cerca le parole del titolo: <b>brand + capo + 2-3 tag di stile</b>. Tocca un tag per aggiungerlo o toglierlo.</p><div class="tnow" id="tagNow"></div>`;
+  } else {
+    h += `<p class="tip">In fondo alla descrizione: <b>15-40 hashtag coerenti con il capo</b>. Tocca per aggiungere o togliere.</p><div id="tagSel"></div>`;
+  }
+  if (qk) {
+    const hits = [...PHRASE_BY_KEY.entries()].filter(([k]) => k.includes(qk)).sort((a, b) => (b[0].startsWith(qk) - a[0].startsWith(qk)) || a[0].length - b[0].length).slice(0, 40);
+    h += `<h4>Risultati</h4><div class="tchips">${hits.map(([k, p]) => chip(p, isOn(p))).join('')}${PHRASE_BY_KEY.has(qk) ? '' : chip(q, isOn(q), 'custom')}</div>`;
+  } else {
+    if (tagMode === 'title') {
+      const base = rec || presets.find(p => p.id === 'universali');
+      const sugg = presetTags(base, d).map(tkey).filter(k => PHRASE_BY_KEY.has(k) && !brandOfKey(k)).map(k => PHRASE_BY_KEY.get(k));
+      h += `<h4>${rec ? 'Consigliati per questo capo' : 'Consigliati'}</h4><div class="tchips">${[...new Set(sugg)].slice(0, 18).map(p => chip(p, isOn(p))).join('')}</div>`;
+    } else {
+      h += `<h4>Blocchi pronti</h4><div class="presets">`;
+      h += userSets.map(s => `<div class="preset"><button class="pmain" data-user="${esc(s.id)}"><span class="t"><b>${esc(s.name)}</b><small>Il tuo blocco · ${s.tags.length} hashtag</small></span></button><button class="iconbtn" data-deluser="${esc(s.id)}" aria-label="Elimina il blocco ${esc(s.name)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('');
+      h += presets.map(p => `<div class="preset"><button class="pmain" data-preset="${esc(p.id)}"><span class="t"><b>${esc(p.name)}</b>${p.recommended ? ' <span class="badge">Consigliato</span>' : ''}<small>${esc(p.desc)} · ${presetTags(p, d).length} hashtag</small></span><span class="plus">Aggiungi</span></button></div>`).join('');
+      h += `</div>`;
+    }
+    h += `<h4>Tutti i tag</h4>`;
+    h += TAG_GROUPS.map(g => `<details class="tgroup" data-g="${g.id}"${tagOpenGroups.has(g.id) ? ' open' : ''}><summary><span>${esc(g.name)}</span><small>${g.items.length}</small></summary>${g.note ? `<div class="gnote">${esc(g.note)}</div>` : ''}<div class="tchips">${g.items.map(p => chip(p, isOn(p))).join('')}</div></details>`).join('');
+  }
+  $('#tagBody').innerHTML = h;
+  // piè di pagina
+  const ft = $('#tagFt');
+  if (tagMode === 'desc' && tagSaving) ft.innerHTML = `<input id="tagSetName" class="search" style="margin:0;flex:1;min-width:0" placeholder="Nome del blocco (es. Jeans Levi's)" maxlength="40" autocomplete="off"><button class="btn" id="tagSetSave">Salva</button>`;
+  else ft.innerHTML = (tagMode === 'desc' ? `<button class="btn ghost" id="tagSetStart">Salva blocco</button>` : '') + `<button class="btn" data-close>Fatto</button>`;
+  refreshTagState();
+}
+function refreshTagState() {
+  const d = cur; if (!d || openSheetId !== 'shTags') return;
+  $$('#tagBody .tchip').forEach(b => b.setAttribute('aria-pressed', isOn(b.dataset.p)));
+  if (tagMode === 'title') {
+    const n = $('#tagNow'); if (n) n.innerHTML = `<span>${esc(d.title || 'Titolo vuoto')}</span><small>${d.title.length}/${LIMITS.title}</small>`;
+  } else {
+    const tags = descSplit(d.description).tags, sel = $('#tagSel');
+    const fb = foreignBrands(d).map(tkey);
+    if (sel) sel.innerHTML = `<div class="selhead"><b>${tags.length} hashtag</b>${tags.length ? '<button id="tagClear">Togli tutti</button>' : ''}</div>`
+      + (tags.length ? `<div class="tchips">${tags.map(t => `<button class="tchip sel${fb.some(b => b.includes(t.toLowerCase()) || t.toLowerCase().startsWith(b)) ? ' bad' : ''}" data-rm="${esc(t)}" aria-label="Togli #${esc(t)}">#${esc(t)} <span aria-hidden="true">×</span></button>`).join('')}</div>` : '<p class="tip">Nessun hashtag ancora: parti da un blocco pronto.</p>')
+      + (fb.length ? `<p class="warnline">Togli i brand diversi da quello del capo (${esc(foreignBrands(d).join(', '))}): Vinted può rimuovere l'annuncio.</p>` : tags.length > 40 ? `<p class="warnline">Oltre 40 hashtag l'annuncio rischia di sembrare spam.</p>` : '');
+    const c = $('#tagClear'); if (c) c.onclick = () => { setDescTags([]); refreshTagState(); };
+  }
+}
+function bindTags() {
+  $('#btnTitleTags').onclick = () => openTags('title');
+  $('#btnDescTags').onclick = () => openTags('desc');
+  $('#tagSearch').addEventListener('input', renderTags);
+  $('#tagSearch').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return; e.preventDefault();
+    const q = e.target.value.trim(); if (!tagOf(q)) return;
+    if (tagMode === 'title') { if (!titleHas(q)) titleToggle(q); } else { const t = descSplit(cur.description).tags; if (!t.some(x => x.toLowerCase() === tkey(q))) setDescTags([...t, q]); }
+    e.target.value = ''; renderTags();
+  });
+  $('#tagBody').addEventListener('toggle', e => { const g = e.target.closest && e.target.closest('details[data-g]'); if (g) g.open ? tagOpenGroups.add(g.dataset.g) : tagOpenGroups.delete(g.dataset.g); }, true);
+  $('#tagBody').addEventListener('click', async e => {
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { setDescTags(descSplit(cur.description).tags.filter(t => t !== rm.dataset.rm)); refreshTagState(); return; }
+    const c = e.target.closest('.tchip[data-p]');
+    if (c) {
+      const p = c.dataset.p;
+      if (tagMode === 'title') titleToggle(p);
+      else { const t = descSplit(cur.description).tags, k = tkey(p); setDescTags(t.some(x => x.toLowerCase() === k) ? t.filter(x => x.toLowerCase() !== k) : [...t, tagOf(p)]); }
+      refreshTagState(); return;
+    }
+    const pr = e.target.closest('[data-preset]');
+    if (pr) {
+      const p = TAG_PRESETS.find(x => x.id === pr.dataset.preset); const before = descSplit(cur.description).tags.length;
+      if (setDescTags([...descSplit(cur.description).tags, ...presetTags(p, cur)])) toast(`Aggiunti ${descSplit(cur.description).tags.length - before} hashtag`);
+      refreshTagState(); return;
+    }
+    const us = e.target.closest('[data-user]');
+    if (us) {
+      const s = userSets.find(x => x.id === us.dataset.user); if (!s) return; const before = descSplit(cur.description).tags.length;
+      if (setDescTags([...descSplit(cur.description).tags, ...s.tags])) toast(`Aggiunti ${descSplit(cur.description).tags.length - before} hashtag`);
+      refreshTagState(); return;
+    }
+    const del = e.target.closest('[data-deluser]');
+    if (del) { const s = userSets.find(x => x.id === del.dataset.deluser); userSets = userSets.filter(x => x.id !== del.dataset.deluser); await saveUserSets(); renderTags(); if (s) toast(`Blocco «${s.name}» eliminato`); }
+  });
+  $('#tagFt').addEventListener('click', async e => {
+    if (e.target.closest('#tagSetStart')) {
+      if (!descSplit(cur.description).tags.length) { toast('Scegli prima qualche hashtag'); return; }
+      tagSaving = true; renderTags(); setTimeout(() => { const i = $('#tagSetName'); if (i) i.focus(); }, 50); return;
+    }
+    if (e.target.closest('#tagSetSave')) {
+      const name = ($('#tagSetName').value || '').trim(); if (!name) { toast('Dai un nome al blocco'); return; }
+      userSets = [{ id: uid(), name, tags: descSplit(cur.description).tags }, ...userSets.filter(s => s.name.toLowerCase() !== name.toLowerCase())];
+      await saveUserSets(); tagSaving = false; renderTags(); toast(`Blocco «${name}» salvato`); return;
+    }
+    if (e.target.closest('[data-close]')) closeSheetNow();
+  });
+}
 
 /* ---------- Impostazioni ---------- */
 async function renderSettings() {
@@ -796,8 +978,8 @@ function bind() {
     }
     d.ref = v; touch();
   });
-  $('#fTitle').addEventListener('input', e => { cur.title = e.target.value.slice(0, LIMITS.title); updCount('#cTitle', cur.title.length, LIMITS.title); touch(); });
-  $('#fDesc').addEventListener('input', e => { cur.description = e.target.value.slice(0, LIMITS.desc); updCount('#cDesc', cur.description.length, LIMITS.desc); autoGrow(e.target); touch(); });
+  $('#fTitle').addEventListener('input', e => { cur.title = e.target.value.slice(0, LIMITS.title); updCount('#cTitle', cur.title.length, LIMITS.title); touch(); renderTagHints(); });
+  $('#fDesc').addEventListener('input', e => { cur.description = e.target.value.slice(0, LIMITS.desc); updCount('#cDesc', cur.description.length, LIMITS.desc); autoGrow(e.target); touch(); renderTagHints(); });
   $('#fPrice').addEventListener('input', e => { const raw = e.target.value.replace(/[^\d,.]/g, '').replace(',', '.'); const n = parseFloat(raw); cur.price = isNaN(n) ? null : Math.round(n * 100) / 100; touch(); });
   $('#fPrice').addEventListener('blur', e => { if (!cur) return; e.target.value = cur.price != null ? fmtPrice(cur.price) : ''; if (cur.price != null && cur.price < LIMITS.priceMin) toast('Il prezzo minimo su Vinted è 1,00 €'); });
   $('#fUnisex').addEventListener('change', e => { cur.unisex = e.target.checked; touch(); });
@@ -881,9 +1063,9 @@ function openEditorReplace(d) {
 
 /* ---------- Avvio ---------- */
 async function init() {
-  bind(); setupInstall();
+  bind(); bindTags(); setupInstall();
   await store.ready();
-  await loadSettings();
+  await loadSettings(); await loadUserSets();
   try { (await store.all('drafts')).forEach(d => drafts.set(d.id, normalize(d))); } catch (e) { toast('Non riesco a leggere le bozze salvate'); }
   if (!store.persistent && !PREVIEW) { const b = $('#bannerStorage'); b.hidden = false; b.innerHTML = '<div><b>Questo browser non permette di salvare.</b> Le bozze andrebbero perse alla chiusura: esci dalla navigazione privata o installa l\'app.</div>'; }
   renderList(); refreshMeter();

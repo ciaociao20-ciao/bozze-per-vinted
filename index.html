@@ -78,12 +78,13 @@
     <div class="field">
       <label class="lbl" for="fTitle">Titolo <span class="req">*</span></label>
       <input class="txt" id="fTitle" placeholder="es. Camicia Polo Ralph Lauren a righe" maxlength="100" autocomplete="off">
-      <span class="count" id="cTitle">0/100</span>
+      <div class="tagrow"><button class="tagbtn" id="btnTitleTags" type="button"><b>#</b> Tag nel titolo</button><span class="count" id="cTitle">0/100</span></div>
     </div>
     <div class="field">
       <label class="lbl" for="fDesc">Descrivi il tuo articolo <span class="req">*</span></label>
       <textarea class="txt" id="fDesc" placeholder="es. indossata poche volte, taglia giusta" maxlength="3000"></textarea>
-      <span class="count" id="cDesc">0/3000</span>
+      <div class="tagrow"><button class="tagbtn" id="btnDescTags" type="button"><b>#</b> Hashtag</button><span class="count" id="cDesc">0/3000</span></div>
+      <p class="warnline" id="tagWarn" hidden></p>
     </div>
   </section>
 
@@ -200,6 +201,12 @@
   </div>
 </div>
 
+<div class="sheet tall" id="shTags" role="dialog" aria-modal="true" aria-labelledby="shTagsT">
+  <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shTagsT">Tag</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="bd"><input class="search" id="tagSearch" placeholder="Cerca un tag" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done"><div id="tagBody"></div></div>
+  <div class="ft" id="tagFt"></div>
+</div>
+
 <div class="sheet tall" id="shExport" role="dialog" aria-modal="true" aria-labelledby="shExportT">
   <div class="hd"><span class="grab"></span><span class="sp"></span><h3 id="shExportT">Esporta per Claude</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="bd" id="exportBody"></div>
@@ -208,6 +215,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <!--APP-END-->
 <script src="data.js"></script>
+<script src="tags.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

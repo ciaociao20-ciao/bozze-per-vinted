@@ -12,6 +12,8 @@ Il modulo ha gli stessi campi e limiti di Vinted: fino a 20 foto (la prima è la
 
 Ogni bozza si salva da sola mentre scrivi. Le foto vengono conservate **byte per byte come le hai scattate**: niente compressione. Per scorrere velocemente l'app crea a parte una piccola miniatura.
 
+Sotto titolo e descrizione ci sono i **tag**. *Tag nel titolo* propone le parole di stile più cercate per quel capo (Vinted cerca nel titolo: brand + capo + 2-3 tag di stile) e le aggiunge o toglie con un tocco. *Hashtag* gestisce il blocco di hashtag in fondo alla descrizione: blocchi pronti per tipo di capo (jeans, tute, Polo Ralph Lauren, pelle, Japan Style, outdoor, maglie da calcio, flanelle, Y2K donna, universali), oltre 450 tag divisi per estetica, epoca, capo e rarità, ricerca, tag scritti da te e blocchi personali salvati. L'app avvisa se compare il nome di un brand diverso da quello del capo, che è la cosa che più facilmente fa rimuovere un annuncio, e se gli hashtag superano i 40. I tag stanno in `tags.js` e vengono dalla raccolta *Tag più usati dai reseller su Vinted* (ottobre 2026).
+
 Nelle impostazioni puoi decidere i valori con cui parte ogni nuova bozza (condizioni, pacco, brand per gli articoli senza marca, un modello di descrizione con la referenza `{ref}`).
 
 ## Installazione
@@ -75,6 +77,7 @@ index.html            pagina dell'app
 app.css               stile (tema chiaro e scuro)
 app.js                logica: archivio locale, modulo, foto, esportazione, importazione
 data.js               categorie, taglie, colori, materiali, condizioni, brand
+tags.js               tag per titolo e descrizione, blocchi pronti
 sw.js                 service worker per l'uso offline
 manifest.webmanifest  dati per l'installazione
 icons/                icone
