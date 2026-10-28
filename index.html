@@ -40,11 +40,11 @@
     <button class="chip" data-f="all" aria-pressed="true">Tutte<b id="cAll">0</b></button>
     <button class="chip" data-f="draft" aria-pressed="false">Incomplete<b id="cDraft">0</b></button>
     <button class="chip" data-f="ready" aria-pressed="false">Pronte<b id="cReady">0</b></button>
-    <button class="chip" data-f="exported" aria-pressed="false">Esportate<b id="cExp">0</b></button>
+    <button class="chip" data-f="exported" aria-pressed="false">Inviate<b id="cExp">0</b></button>
     <button class="chip" data-f="uploaded" aria-pressed="false">Su Vinted<b id="cUp">0</b></button>
   </div>
   <div class="cards" id="cards"></div>
-  <p class="note">Le bozze e le foto originali restano <b>nella memoria di questo telefono</b>, anche senza internet. Quando sono pronte le <b>invii a Claude</b> (tasto in alto, tramite il tuo Google Drive) e lui le carica su Vinted per te dal computer.</p>
+  <p class="note">Le bozze e le foto originali restano <b>nella memoria di questo telefono</b>, anche senza internet. Quando sono pronte le <b>invii a Claude</b> con un tasto (finiscono nel tuo Google Drive) e lui le carica su Shopify o su Vinted per te.</p>
   <div class="meter" id="meter" hidden><span id="meterTxt"></span><div class="bar"><i id="meterBar"></i></div></div>
   <div class="fab"><button id="btnNew"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova bozza</button></div>
 </div>
@@ -164,7 +164,8 @@
 <div class="sheet" id="shMenu" role="dialog" aria-modal="true" aria-label="Azioni bozza">
   <div class="hd"><span class="grab"></span><span class="sp"></span><h3>Bozza</h3><button class="iconbtn" data-close aria-label="Chiudi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="bd">
-    <button class="menuopt" id="mExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Esporta solo questa bozza</button>
+    <button class="menuopt" id="mDrive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Invia su Google Drive</button>
+    <button class="menuopt" id="mExport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Esporta come pacchetto ZIP</button>
     <button class="menuopt" id="mCopyTitle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>Copia titolo</button>
     <button class="menuopt" id="mCopyDesc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>Copia descrizione</button>
     <button class="menuopt" id="mDup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Duplica (senza foto)</button>
@@ -190,6 +191,12 @@
     <div class="f"><label for="sNoBrand">Brand da usare per gli articoli senza marca</label><input id="sNoBrand" autocomplete="off" placeholder="Nessun brand"></div>
     <div class="f"><label for="sTemplate">Modello della descrizione · <code>{ref}</code> diventa la referenza</label><textarea id="sTemplate"></textarea></div>
     <div class="f"><button class="btn" id="sSave" style="width:100%">Salva valori</button></div>
+    <h4>Google Drive</h4>
+    <p>Con la chiave Google l'app carica le bozze direttamente nella cartella «Bozze Vinted» del tuo Drive, senza passare dal foglio di condivisione. La chiave (Client ID) si crea gratis una volta sola nel tuo account Google: le istruzioni sono nel progetto, e Claude può farlo per te.</p>
+    <div class="f"><label for="sDriveClient">Chiave Google (Client ID)</label><input id="sDriveClient" placeholder="123456789-xxxx.apps.googleusercontent.com" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <p id="sDriveState"></p>
+    <div class="f" style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="sDriveConnect" style="flex:1" hidden>Collega Google Drive</button><button class="btn ghost" id="sDriveDisconnect" style="flex:1" hidden>Scollega</button></div>
+    <p>Quando crei la chiave, l'indirizzo da autorizzare (origine JavaScript e URI di reindirizzamento) è: <code id="sDriveRedirect" style="overflow-wrap:anywhere"></code> <button class="btn ghost small" id="sDriveCopy">Copia</button></p>
     <h4>Memoria del telefono</h4>
     <div class="kv"><span>Bozze</span><span id="stDrafts">–</span></div>
     <div class="kv"><span>Foto salvate</span><span id="stPhotos">–</span></div>

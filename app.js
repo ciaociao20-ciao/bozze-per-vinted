@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.1.2';
+const VERSION = '1.2.0';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -82,7 +82,7 @@ async function putPhotoAndThumb(photoRec, thumbRec) {
 const recBlob = r => r ? (r.blob instanceof Blob ? r.blob : (r.buf ? new Blob([r.buf], { type: r.type || 'image/jpeg' }) : null)) : null;
 
 /* ---------- Impostazioni ---------- */
-const DEFAULTS = { condition: '', parcel: '', noBrand: '', descTemplate: '' };
+const DEFAULTS = { condition: '', parcel: '', noBrand: '', descTemplate: '', driveClientId: '' };
 let settings = { ...DEFAULTS, ...(window.BV_PRESET || {}) };
 async function loadSettings() {
   try { const r = await store.get('meta', 'settings'); if (r && r.v) settings = { ...DEFAULTS, ...r.v }; } catch (e) {}
@@ -93,7 +93,7 @@ async function loadSettings() {
       const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
       const json = decodeURIComponent(escape(atob(b64)));
       const v = JSON.parse(json);
-      settings = { ...DEFAULTS, ...pick(v, Object.keys(DEFAULTS)) };
+      settings = { ...DEFAULTS, ...settings, ...pick(v, Object.keys(DEFAULTS)) };
       await store.put('meta', { k: 'settings', v: settings });
       toast('Valori di partenza importati dal link');
     } catch (e) { toast('Il link delle regole non è valido'); }
@@ -103,7 +103,7 @@ async function loadSettings() {
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => typeof o[k] === 'string').map(k => [k, o[k]]));
 function rulesFromText(text) {
   const m = String(text || '').match(/#regole=([A-Za-z0-9_\-]+)/); if (!m) return null;
-  try { const json = decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))); return { ...DEFAULTS, ...pick(JSON.parse(json), Object.keys(DEFAULTS)) }; } catch (e) { return null; }
+  try { const json = decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))); return { ...DEFAULTS, ...settings, ...pick(JSON.parse(json), Object.keys(DEFAULTS)) }; } catch (e) { return null; }
 }
 function applyTemplate(t, ref) { return (t || '').split('{ref}').join(ref || ''); }
 
@@ -124,7 +124,8 @@ function normalize(d) {
     condition: d.condition || '', colors: Array.isArray(d.colors) ? d.colors : [], materials: Array.isArray(d.materials) ? d.materials : [],
     price: typeof d.price === 'number' ? d.price : null, parcel: d.parcel || '', unisex: !!d.unisex,
     photos: Array.isArray(d.photos) ? d.photos.filter(p => p && p.id) : [],
-    status: d.status === 'uploaded' ? 'uploaded' : 'active', uploadedAt: d.uploadedAt || null, exportedAt: d.exportedAt || null
+    status: d.status === 'uploaded' ? 'uploaded' : 'active', uploadedAt: d.uploadedAt || null, exportedAt: d.exportedAt || null,
+    drive: d.drive && typeof d.drive === 'object' ? d.drive : null
   };
 }
 function needsSize(d) { return !!(d.category && d.category.sizeGroup && d.category.sizeGroup !== 'none'); }
@@ -148,7 +149,7 @@ function statusOf(d) {
   if (d.exportedAt && d.exportedAt >= d.updatedAt) return 'exported';
   return 'ready';
 }
-const STATUS_LABEL = { draft: 'Incompleta', ready: 'Pronta', exported: 'Esportata', uploaded: 'Su Vinted' };
+const STATUS_LABEL = { draft: 'Incompleta', ready: 'Pronta', exported: 'Inviata', uploaded: 'Su Vinted' };
 
 /* ---------- Salvataggio ---------- */
 function setSaveBadge(t, cls) { const b = $('#saveBadge'); b.textContent = t; b.className = 'savebadge' + (cls ? ' ' + cls : ''); }
@@ -279,7 +280,7 @@ function renderEditor() {
   const s = statusOf(d), box = $('#stateBox');
   box.hidden = !(s === 'uploaded' || d.exportedAt);
   if (s === 'uploaded') { $('#stateLbl').textContent = 'Caricata su Vinted'; $('#stateTxt').textContent = (d.uploadedAt ? 'Segnata il ' + new Date(d.uploadedAt).toLocaleDateString('it-IT') + '. ' : '') + 'Le modifiche fatte qui non arrivano su Vinted.'; }
-  else if (d.exportedAt) { $('#stateLbl').textContent = 'Esportazione'; $('#stateTxt').textContent = 'Esportata il ' + new Date(d.exportedAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + (s === 'exported' ? '.' : '. L\'hai modificata dopo: esportala di nuovo.'); }
+  else if (d.exportedAt) { const onDrive = d.drive && d.drive.folderId && d.drive.syncedAt; $('#stateLbl').textContent = 'Invio a Claude'; $('#stateTxt').innerHTML = (onDrive ? 'Su Google Drive dal ' : 'Esportata il ') + new Date(d.exportedAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) + (s === 'exported' ? '.' : '. <b>L\'hai modificata dopo: inviala di nuovo.</b>') + (onDrive ? ` <a href="https://drive.google.com/drive/folders/${esc(d.drive.folderId)}" target="_blank" rel="noopener">Apri la cartella</a>` : ''); }
   $('#mUploadedTxt').textContent = d.status === 'uploaded' ? 'Riporta tra le bozze' : 'Segna come caricata su Vinted';
   renderPhotos(); renderStatus(); renderTagHints();
 }
@@ -292,7 +293,7 @@ function renderStatus() {
   box.className = 'txt ' + s;
   if (busy) box.innerHTML = `<b>Salvo le foto…</b><span>${busy} in corso, non chiudere l'app.</span>`;
   else if (s === 'uploaded') box.innerHTML = '<b>Su Vinted</b><span>Questa bozza è già stata caricata.</span>';
-  else if (s === 'exported') box.innerHTML = '<b>Esportata</b><span>Pronta per Claude.</span>';
+  else if (s === 'exported') box.innerHTML = '<b>Inviata</b><span>Claude la può prendere.</span>';
   else if (s === 'ready') box.innerHTML = '<b>Pronta</b><span>Tutti i campi sono compilati.</span>';
   else box.innerHTML = `<b>Incompleta</b><span>Manca: ${esc(m.join(', '))}</span>`;
 }
@@ -642,11 +643,199 @@ function bindTags() {
   });
 }
 
+
+/* ---------- Google Drive: invio diretto ---------- */
+const DRIVE_API = 'https://www.googleapis.com/drive/v3', DRIVE_UP = 'https://www.googleapis.com/upload/drive/v3';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_ROOT_NAME = 'Bozze Vinted';
+const REDIRECT_URI = location.origin + location.pathname;
+let gtoken = null;
+let driveMeta = { rootId: '' };
+let sync = { running: false, stop: false, total: 0, done: 0, bytes: 0, bytesTotal: 0, cur: '', errors: [], finished: false };
+let wakeLock = null;
+const driveConfigured = () => !PREVIEW && !!(settings.driveClientId || '').trim();
+const driveConnected = () => !!(gtoken && gtoken.exp > Date.now() + 60000);
+function loadToken() { try { const r = JSON.parse(ss.get('bv-gtoken') || 'null'); if (r && r.t && r.exp > Date.now() + 60000) gtoken = r; } catch (e) {} }
+function saveToken(t) { gtoken = t; ss.set('bv-gtoken', t ? JSON.stringify(t) : ''); }
+function startAuth(after, silent) {
+  const state = uid(); ss.set('bv-oauth-state', state); ss.set('bv-after-auth', after || '');
+  const p = new URLSearchParams({ client_id: settings.driveClientId.trim(), redirect_uri: REDIRECT_URI, response_type: 'token', scope: DRIVE_SCOPE, include_granted_scopes: 'true', state });
+  if (silent) p.set('prompt', 'none');
+  location.assign('https://accounts.google.com/o/oauth2/v2/auth?' + p.toString());
+}
+function handleOAuthReturn() {
+  const h = location.hash.slice(1);
+  if (!/(^|&)(access_token|error)=/.test(h)) return null;
+  const q = new URLSearchParams(h);
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  const expected = ss.get('bv-oauth-state'); ss.set('bv-oauth-state', '');
+  const after = ss.get('bv-after-auth') || ''; ss.set('bv-after-auth', '');
+  if (q.get('error')) return { error: q.get('error'), after };
+  if (!expected || q.get('state') !== expected) return { error: 'state', after };
+  const t = q.get('access_token'), secs = parseInt(q.get('expires_in') || '3600', 10);
+  if (!t) return { error: 'token', after };
+  saveToken({ t, exp: Date.now() + secs * 1000 });
+  return { ok: true, after };
+}
+const gq = v => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+async function gfetch(url, opt = {}, retry = 0) {
+  if (!driveConnected()) throw Object.assign(new Error('auth'), { code: 'auth' });
+  const headers = Object.assign({ Authorization: 'Bearer ' + gtoken.t }, opt.headers || {});
+  let res;
+  try { res = await fetch(url, { ...opt, headers }); }
+  catch (e) { if (retry < 3 && !sync.stop) { await sleep(1500 * (retry + 1)); return gfetch(url, opt, retry + 1); } throw Object.assign(new Error('network'), { code: 'network' }); }
+  if (res.status === 401) { saveToken(null); throw Object.assign(new Error('auth'), { code: 'auth' }); }
+  if (res.status === 403) {
+    let reason = ''; try { const j = await res.json(); reason = (j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || (j.error && j.error.status) || ''; } catch (e) {}
+    if (/storageQuotaExceeded/i.test(reason)) throw Object.assign(new Error('quota'), { code: 'quota' });
+    if (/rateLimit/i.test(reason) && retry < 4) { await sleep(2500 * (retry + 1)); return gfetch(url, opt, retry + 1); }
+    throw Object.assign(new Error('forbidden'), { code: 'forbidden', detail: reason });
+  }
+  if ((res.status === 429 || res.status >= 500) && retry < 4) { await sleep(2500 * (retry + 1)); return gfetch(url, opt, retry + 1); }
+  if (!res.ok) throw Object.assign(new Error('http ' + res.status), { code: 'http', status: res.status });
+  return res;
+}
+async function gFind(name, parent, folder) {
+  const q = `name='${gq(name)}' and '${parent}' in parents and trashed=false` + (folder ? " and mimeType='application/vnd.google-apps.folder'" : '');
+  const r = await gfetch(`${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&spaces=drive`);
+  const j = await r.json(); return j.files && j.files[0] ? j.files[0].id : null;
+}
+async function gMkdir(name, parent) {
+  const r = await gfetch(`${DRIVE_API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }) });
+  return (await r.json()).id;
+}
+async function gExists(id) {
+  if (!id) return false;
+  try { const r = await gfetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id,trashed`); return !(await r.json()).trashed; }
+  catch (e) { if (e.code === 'http' && e.status === 404) return false; throw e; }
+}
+async function gUpload(name, parent, blob, type) {
+  const r = await gfetch(`${DRIVE_UP}/files?uploadType=resumable&fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': type, 'X-Upload-Content-Length': String(blob.size) }, body: JSON.stringify({ name, parents: [parent], mimeType: type }) });
+  const loc = r.headers.get('Location'); if (!loc) throw Object.assign(new Error('nolocation'), { code: 'http', status: 0 });
+  const u = await gfetch(loc, { method: 'PUT', headers: { 'Content-Type': type }, body: blob });
+  return (await u.json()).id;
+}
+async function gUpdate(id, blob, type) { const u = await gfetch(`${DRIVE_UP}/files/${encodeURIComponent(id)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { 'Content-Type': type }, body: blob }); return (await u.json()).id; }
+async function gRename(id, name) { await gfetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }); }
+async function gDelete(id) { try { await gfetch(`${DRIVE_API}/files/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) { if (!(e.code === 'http' && e.status === 404)) throw e; } }
+function fnv(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); }
+function needsSend(d) { return d.photos.length > 0 && missing(d).length === 0 && d.status !== 'uploaded' && (!d.exportedAt || d.updatedAt > d.exportedAt); }
+function toSend() { return [...drafts.values()].filter(needsSend).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
+async function ensureRoot() {
+  if (await gExists(driveMeta.rootId)) return driveMeta.rootId;
+  driveMeta.rootId = (await gFind(DRIVE_ROOT_NAME, 'root', true)) || await gMkdir(DRIVE_ROOT_NAME, 'root');
+  try { await store.put('meta', { k: 'drive', v: driveMeta }); } catch (e) {}
+  return driveMeta.rootId;
+}
+async function syncDraft(d, root) {
+  const dr = d.drive && typeof d.drive === 'object' ? d.drive : { folderId: '', name: '', files: {}, jsonId: '', txtId: '', schedaHash: '', syncedAt: null };
+  dr.files = dr.files || {};
+  d.drive = dr;
+  const name = packName(d);
+  if (!(await gExists(dr.folderId))) { Object.assign(dr, { folderId: (await gFind(name, root, true)) || await gMkdir(name, root), name, files: {}, jsonId: '', txtId: '', schedaHash: '' }); await persist(d); }
+  else if (dr.name !== name) { await gRename(dr.folderId, name); dr.name = name; await persist(d); }
+  const files = d.photos.map((p, i) => ({ ...p, file: 'foto-' + String(i + 1).padStart(2, '0') + '.' + extOf(p.type) }));
+  for (const pid of Object.keys(dr.files)) { if (!d.photos.some(p => p.id === pid)) { await gDelete(dr.files[pid].id); delete dr.files[pid]; await persist(d); } }
+  for (const f of files) {
+    if (sync.stop) throw Object.assign(new Error('stop'), { code: 'stop' });
+    const have = dr.files[f.id];
+    if (have && have.name === f.file) continue;
+    if (have) { await gRename(have.id, f.file); have.name = f.file; await persist(d); continue; }
+    sync.cur = `${d.ref || d.title || name} · ${f.file}`; renderSync();
+    const rec = await store.get('photos', f.id); const b = recBlob(rec);
+    if (!b) throw Object.assign(new Error('missing'), { code: 'missing', msg: 'foto mancante nel telefono' });
+    const id = await gUpload(f.file, dr.folderId, b, f.type || 'image/jpeg');
+    dr.files[f.id] = { id, name: f.file }; sync.bytes += b.size; await persist(d); renderSync();
+  }
+  const sch = scheda(d, files); sch.drive = { cartella: dr.folderId, nome_cartella: name };
+  const stable = JSON.stringify({ ...sch, esportata: null });
+  const hash = fnv(stable);
+  if (hash !== dr.schedaHash || !dr.jsonId || !dr.txtId) {
+    const jb = new Blob([JSON.stringify(sch, null, 2)], { type: 'application/json' }), tb = new Blob([schedaTxt(sch)], { type: 'text/plain' });
+    if (dr.jsonId && await gExists(dr.jsonId)) await gUpdate(dr.jsonId, jb, 'application/json'); else dr.jsonId = await gUpload('scheda.json', dr.folderId, jb, 'application/json');
+    if (dr.txtId && await gExists(dr.txtId)) await gUpdate(dr.txtId, tb, 'text/plain'); else dr.txtId = await gUpload('scheda.txt', dr.folderId, tb, 'text/plain');
+    dr.schedaHash = hash;
+  }
+  dr.syncedAt = Date.now(); d.exportedAt = Math.max(dr.syncedAt, d.updatedAt || 0);
+  await persist(d);
+}
+function syncErrMsg(e) {
+  const c = e && e.code;
+  return c === 'quota' ? 'Spazio di Google Drive esaurito' : c === 'network' ? 'Connessione assente o instabile' : c === 'forbidden' ? 'Google ha rifiutato la richiesta' + (e.detail ? ` (${e.detail})` : '') : c === 'missing' ? e.msg : c === 'stop' ? 'Fermato' : (e && e.msg) || 'Errore di caricamento';
+}
+async function syncAll(ids) {
+  if (sync.running) return;
+  if (!driveConfigured()) { toast('Prima imposta la chiave Google in Impostazioni'); return; }
+  const list = (ids ? ids.map(id => drafts.get(id)).filter(Boolean) : toSend()).filter(d => d.photos.length);
+  if (!list.length) { toast('Niente da inviare: le bozze pronte sono già su Drive'); return; }
+  if (!driveConnected()) { ss.set('bv-sync-ids', ids ? JSON.stringify(ids) : ''); startAuth('sync'); return; }
+  sync = { running: true, stop: false, total: list.length, done: 0, bytes: 0, bytesTotal: list.reduce((a, d) => a + estSize(d), 0), cur: 'Preparo la cartella…', errors: [], finished: false };
+  for (const id of [...saveTimers.keys()]) { const d = drafts.get(id); if (d) await persist(d); }
+  try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  renderSync();
+  let root;
+  try { root = await ensureRoot(); }
+  catch (e) { sync.running = false; sync.finished = true; if (e.code === 'auth') { ss.set('bv-sync-ids', ids ? JSON.stringify(ids) : ''); startAuth('sync', true); return; } sync.errors.push({ title: 'Cartella «Bozze Vinted»', msg: syncErrMsg(e) }); renderSync(); renderList(); return; }
+  for (const d of list) {
+    if (sync.stop) break;
+    try { await syncDraft(d, root); }
+    catch (e) {
+      if (e.code === 'auth') { sync.running = false; ss.set('bv-sync-ids', ids ? JSON.stringify(ids) : ''); startAuth('sync', true); return; }
+      if (e.code === 'stop') break;
+      sync.errors.push({ title: d.ref || d.title || 'Bozza', msg: syncErrMsg(e) });
+      if (e.code === 'quota' || e.code === 'network') break;
+    }
+    sync.done++; renderSync();
+  }
+  sync.running = false; sync.finished = true; sync.cur = '';
+  try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch (e) {}
+  renderSync(); renderList(); if (cur) renderEditor();
+  if (!sync.errors.length && !sync.stop) toast(sync.done === 1 ? 'Inviata 1 bozza su Drive' : `Inviate ${sync.done} bozze su Drive`, 4000);
+}
+function renderSync() {
+  const box = $('#drivePanel'); if (!box || openSheetId !== 'shExport' || exp.mode !== 'select') return;
+  box.innerHTML = drivePanelHtml();
+  bindDrivePanel();
+}
+function drivePanelHtml() {
+  if (PREVIEW) return `<p>Nell'anteprima l'invio su Drive è disattivato. Funziona nell'app installata.</p>`;
+  if (!driveConfigured()) return `<p>Per inviare direttamente su Google Drive serve la <b>chiave Google</b> dell'app (una volta sola). Si imposta in Impostazioni → Google Drive.</p><div style="padding:4px 4px 10px"><button class="btn ghost" id="gOpenSettings" style="width:100%">Apri Impostazioni</button></div>`;
+  const list = toSend(), bytes = list.reduce((a, d) => a + estSize(d), 0);
+  const sent = [...drafts.values()].filter(d => d.drive && d.drive.syncedAt).length;
+  let h = '';
+  if (!driveConnected() && !sync.running) {
+    h += `<p>Collega il tuo Google Drive: si apre la pagina di Google per dare il permesso all'app di scrivere nella cartella <b>«Bozze Vinted»</b>, poi torni qui da solo.</p><div style="padding:4px 4px 10px"><button class="btn" id="gConnect" style="width:100%">Collega Google Drive</button></div>`;
+    if (sent) h += `<p>${sent} bozz${sent === 1 ? 'a già inviata' : 'e già inviate'}.</p>`;
+    return h;
+  }
+  if (sync.running) {
+    const pct = sync.bytesTotal ? Math.min(100, Math.round(sync.bytes / sync.bytesTotal * 100)) : 0;
+    h += `<div class="syncbox"><b>Invio in corso · ${sync.done} di ${sync.total}</b><div class="bar"><i style="width:${pct}%"></i></div><small>${esc(sync.cur)} · ${fmtBytes(sync.bytes)} di ${fmtBytes(sync.bytesTotal)}</small><small>Tieni l'app aperta finché non finisce.</small></div><div style="padding:4px 4px 10px"><button class="btn ghost" id="gStop" style="width:100%">Ferma</button></div>`;
+  } else {
+    if (sync.finished && (sync.done || sync.errors.length)) h += `<div class="syncbox ${sync.errors.length ? 'warn' : 'ok'}"><b>${sync.stop ? 'Fermato' : sync.errors.length ? 'Finito con problemi' : 'Fatto'}: ${sync.done - sync.errors.length < 0 ? 0 : sync.done - sync.errors.length} inviat${sync.done - sync.errors.length === 1 ? 'a' : 'e'}${sync.errors.length ? `, ${sync.errors.length} no` : ''}</b>${sync.errors.map(e => `<small>${esc(e.title)}: ${esc(e.msg)}</small>`).join('')}</div>`;
+    h += `<p>Collegato a Google Drive ✓ · cartella <b>«Bozze Vinted»</b>${sent ? ` · ${sent} bozz${sent === 1 ? 'a' : 'e'} già lì` : ''}</p>`;
+    h += `<div style="padding:4px 4px 10px"><button class="btn" id="gSendAll" style="width:100%" ${list.length ? '' : 'disabled'}>${list.length ? `Invia tutto · ${list.length} bozz${list.length === 1 ? 'a' : 'e'} · ${fmtBytes(bytes)}` : 'Tutto già inviato'}</button></div>`;
+    h += `<p class="tip">Vengono inviate le bozze <b>Pronte</b> (tutti i campi compilati) nuove o modificate. Ogni bozza diventa una cartella con le foto originali e la scheda. Se si interrompe, riparti e continua da dove era.</p>`;
+  }
+  return h;
+}
+function bindDrivePanel() {
+  const c = $('#gConnect'); if (c) c.onclick = () => startAuth('open');
+  const s = $('#gSendAll'); if (s) s.onclick = () => syncAll();
+  const st = $('#gStop'); if (st) st.onclick = () => { sync.stop = true; sync.cur = 'Mi fermo dopo questa foto…'; renderSync(); };
+  const o = $('#gOpenSettings'); if (o) o.onclick = () => { closeSheetNow(); setTimeout(() => { renderSettings(); openSheet('shSettings'); setTimeout(() => { const el = $('#sDriveClient'); if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } }, 300); }, 260); };
+}
+
 /* ---------- Impostazioni ---------- */
 async function renderSettings() {
   $('#sCondition').innerHTML = `<option value="">— nessuna —</option>` + CONDITIONS.map(c => `<option ${settings.condition === c[0] ? 'selected' : ''}>${esc(c[0])}</option>`).join('');
   $('#sParcel').innerHTML = `<option value="">— nessuna —</option>` + PARCELS.map(c => `<option ${settings.parcel === c[0] ? 'selected' : ''}>${esc(c[0])}</option>`).join('');
   $('#sNoBrand').value = settings.noBrand; $('#sTemplate').value = settings.descTemplate;
+  $('#sDriveClient').value = settings.driveClientId || '';
+  $('#sDriveState').textContent = PREVIEW ? 'Non disponibile nell\'anteprima.' : !driveConfigured() ? 'Chiave non impostata.' : driveConnected() ? 'Collegato ✓ (il permesso dura circa un\'ora, poi l\'app lo rinnova da sola).' : 'Chiave impostata, non ancora collegato.';
+  $('#sDriveConnect').hidden = !driveConfigured() || driveConnected();
+  $('#sDriveDisconnect').hidden = !driveConnected();
+  $('#sDriveRedirect').textContent = REDIRECT_URI;
   $('#appVersion').textContent = 'Versione ' + VERSION + '.';
   const n = drafts.size, photos = [...drafts.values()].reduce((a, d) => a + d.photos.length, 0);
   $('#stDrafts').textContent = n; $('#stPhotos').textContent = photos;
@@ -753,9 +942,9 @@ function makeGroups() {
   exp.groups = groups;
 }
 function claudePrompt() {
-  return `Ho delle bozze di annunci preparate con l'app «Bozze per Vinted» (formato ${FORMAT}). Sono pacchetti ZIP, uno per articolo, nella cartella «Bozze Vinted» del mio Google Drive (se li ho messi altrove lo scrivo qui: ...). Prendili da lì.
+  return `Ho delle bozze di annunci preparate con l'app «Bozze per Vinted» (formato ${FORMAT}). Sono nella cartella «Bozze Vinted» del mio Google Drive: una sottocartella per articolo (oppure un pacchetto ZIP per articolo). Prendile da lì.
 
-Ogni ZIP contiene scheda.json (titolo, descrizione, categoria, brand, taglia, condizioni, colori, materiali, prezzo, dimensioni del pacco) e le foto originali foto-01.jpg, foto-02.jpg… già nell'ordine giusto (la 01 è la copertina).
+Ogni articolo contiene scheda.json (titolo, descrizione, categoria, brand, taglia, condizioni, colori, materiali, prezzo, dimensioni del pacco) e le foto originali foto-01.jpg, foto-02.jpg… già nell'ordine giusto (la 01 è la copertina).
 
 Per ogni pacchetto, uno alla volta:
 1. apri vinted.it/items/new nel mio Chrome (sono già connesso);
@@ -774,19 +963,23 @@ function renderExport() {
     const bytes = selList.reduce((a, d) => a + estSize(d), 0);
     const nGroups = selList.length ? (() => { const save = exp.groups; makeGroups(); const n = exp.groups.length; exp.groups = save; return n; })() : 0;
     body.innerHTML = `
-      <p>Ogni bozza diventa un pacchetto ZIP con le <b>foto originali</b> e una scheda con tutti i campi. Per inviarli a Claude, al momento di condividere scegli <b>Drive</b> e la cartella <b>«Bozze Vinted»</b> del tuo Google Drive: Claude li legge da lì (basta che Google Drive sia collegato al tuo account Claude). Vanno bene anche iCloud Drive o il computer. I pacchetti sono anche il tuo backup.</p>
+      <h4>Google Drive</h4>
+      <div id="drivePanel">${drivePanelHtml()}</div>
+      <h4>Poi scrivi a Claude</h4>
+      <p>Quando le bozze sono su Drive, scrivi a Claude (anche dal telefono) cosa farne: <b>«carica le bozze da Drive su Shopify»</b> le crea come prodotti; per Vinted serve il Chrome del computer con Vinted connesso. Claude legge le cartelle da solo, se Google Drive è collegato al tuo account Claude.</p>
+      <div class="prompt" id="xPrompt">${esc(claudePrompt())}</div>
+      <div style="padding:4px 4px 12px"><button class="btn ghost" id="xCopy" style="width:100%">Copia istruzioni per Vinted</button></div>
+      <details class="tgroup"><summary><span>Altri modi: pacchetti ZIP</span><small>Condividi o scarica</small></summary>
+      <p>Ogni bozza diventa un pacchetto ZIP con le <b>foto originali</b> e la scheda, da salvare su iCloud Drive, Google Drive o computer con il foglio di condivisione. Sono anche il tuo backup.</p>
       ${PREVIEW ? '<div class="banner warn"><div>Nell\'anteprima l\'esportazione è disattivata. Funziona nell\'app installata.</div></div>' : ''}
       <div class="sel-all"><span>${selList.length} selezionat${selList.length === 1 ? 'a' : 'e'} · ${fmtBytes(bytes)}${nGroups ? ` · ${nGroups} invi${nGroups === 1 ? 'o' : 'i'}` : ''}</span><span class="links"><button id="xReady">Pronte</button> · <button id="xAll">Tutte</button> · <button id="xNone">Nessuna</button></span></div>
       <div id="xList">${all.length ? all.map(d => { const s = statusOf(d); return `<button class="opt" role="checkbox" data-id="${esc(d.id)}" aria-checked="${exp.sel.has(d.id)}"><span class="mini">${d.photos[0] ? `<img data-tid="${esc(d.photos[0].id)}" alt="">` : ''}</span><span class="t">${esc(d.title || 'Senza titolo')}<small>${esc([d.ref, STATUS_LABEL[s], d.photos.length + ' foto', fmtBytes(estSize(d))].filter(Boolean).join(' · '))}</small></span><span class="check"></span></button>`; }).join('') : '<p>Nessuna bozza con foto da esportare.</p>'}</div>
       <div style="padding:12px 4px"><button class="btn" id="xGo" style="width:100%" ${selList.length && !PREVIEW ? '' : 'disabled'}>Prepara ${selList.length || ''} pacchett${selList.length === 1 ? 'o' : 'i'}</button></div>
-      <h4>Poi, dal computer</h4>
-      <p>Il caricamento su Vinted lo fa Claude in Chrome sul computer, con Vinted connesso nel browser. Apri Claude lì e incolla questo messaggio: il resto lo fa lui, un articolo alla volta.</p>
-      <div class="prompt" id="xPrompt">${esc(claudePrompt())}</div>
-      <div style="padding:4px 4px 12px"><button class="btn ghost" id="xCopy" style="width:100%">Copia istruzioni</button></div>
+      </details>
       <h4>Importa pacchetti</h4>
       <p>Per ripristinare un backup o spostare le bozze su un altro telefono: scegli uno o più pacchetti ZIP esportati da quest'app.</p>
       <div style="padding:4px 4px 16px"><button class="btn ghost" id="xImport" style="width:100%" ${PREVIEW ? 'disabled' : ''}>Importa pacchetti ZIP</button><input type="file" id="importInput" accept=".zip,application/zip,application/x-zip-compressed" multiple class="sr" tabindex="-1" aria-hidden="true"></div>`;
-    hydrateIn(body, true);
+    hydrateIn(body, true); bindDrivePanel();
     $$('#xList [data-id]').forEach(b => b.onclick = () => { const id = b.dataset.id; exp.sel.has(id) ? exp.sel.delete(id) : exp.sel.add(id); const y = body.scrollTop; renderExport(); $('#exportBody').scrollTop = y; });
     $('#xReady').onclick = () => { exp.sel = new Set(all.filter(d => statusOf(d) === 'ready').map(d => d.id)); renderExport(); };
     $('#xAll').onclick = () => { exp.sel = new Set(all.map(d => d.id)); renderExport(); };
@@ -1022,6 +1215,7 @@ function bind() {
 
   $('#btnMenu').onclick = () => openSheet('shMenu');
   $('#mExport').onclick = () => { closeSheetNow(); if (!cur.photos.length) { toast('Aggiungi almeno una foto prima di esportare'); return; } persist(cur); setTimeout(() => openExport(cur.id), 260); };
+  $('#mDrive').onclick = () => { const d = cur; closeSheetNow(); if (!d.photos.length) { toast('Aggiungi almeno una foto'); return; } if (!driveConfigured()) { toast('Prima imposta la chiave Google in Impostazioni'); return; } persist(d); setTimeout(() => { exp = { mode: 'select', sel: new Set(), groups: [] }; renderExport(); openSheet('shExport'); syncAll([d.id]); }, 260); };
   $('#mCopyTitle').onclick = async () => { closeSheetNow(); toast(await copyText(cur.title) ? 'Titolo copiato' : 'Copia non riuscita'); };
   $('#mCopyDesc').onclick = async () => { closeSheetNow(); toast(await copyText(cur.description) ? 'Descrizione copiata' : 'Copia non riuscita'); };
   $('#mDup').onclick = () => {
@@ -1047,15 +1241,20 @@ function bind() {
 
   $('#btnSettings').onclick = () => { renderSettings(); openSheet('shSettings'); };
   $('#sSave').onclick = async () => {
-    settings = { condition: $('#sCondition').value, parcel: $('#sParcel').value, noBrand: $('#sNoBrand').value.trim(), descTemplate: $('#sTemplate').value };
+    const newClient = $('#sDriveClient').value.trim().replace(/\s+/g, '');
+    if (newClient !== (settings.driveClientId || '')) saveToken(null);
+    settings = { condition: $('#sCondition').value, parcel: $('#sParcel').value, noBrand: $('#sNoBrand').value.trim(), descTemplate: $('#sTemplate').value, driveClientId: newClient };
     try { await store.put('meta', { k: 'settings', v: settings }); toast('Valori salvati: valgono per le nuove bozze'); } catch (e) { toast('Valori non salvati, riprova'); }
     closeSheetNow();
   };
   $('#sImport').addEventListener('input', e => {
     const r = rulesFromText(e.target.value); if (!r) return;
-    $('#sCondition').value = r.condition; $('#sParcel').value = r.parcel; $('#sNoBrand').value = r.noBrand; $('#sTemplate').value = r.descTemplate;
+    $('#sCondition').value = r.condition; $('#sParcel').value = r.parcel; $('#sNoBrand').value = r.noBrand; $('#sTemplate').value = r.descTemplate; if (r.driveClientId) $('#sDriveClient').value = r.driveClientId;
     e.target.value = ''; toast('Valori presi dal link: tocca Salva valori');
   });
+  $('#sDriveConnect').onclick = () => { const v = $('#sDriveClient').value.trim(); if (!v) { toast('Incolla prima la chiave (Client ID)'); return; } settings.driveClientId = v; store.put('meta', { k: 'settings', v: settings }).catch(() => {}); startAuth('settings'); };
+  $('#sDriveDisconnect').onclick = () => { saveToken(null); renderSettings(); toast('Scollegato da Google Drive'); };
+  $('#sDriveCopy').onclick = async () => toast(await copyText(REDIRECT_URI) ? 'Indirizzo copiato' : 'Copia non riuscita');
   $('#btnExport').onclick = () => openExport();
   $('#backupGo').onclick = () => openExport();
   $('#backupClose').onclick = () => { ss.set('bv-backup-off', '1'); $('#bannerBackup').hidden = true; };
@@ -1073,12 +1272,25 @@ function openEditorReplace(d) {
 /* ---------- Avvio ---------- */
 async function init() {
   bind(); bindTags(); setupInstall();
+  const oauth = PREVIEW ? null : handleOAuthReturn();
   await store.ready();
   await loadSettings(); await loadUserSets();
+  try { const r = await store.get('meta', 'drive'); if (r && r.v) driveMeta = { ...driveMeta, ...r.v }; } catch (e) {}
+  loadToken();
   try { (await store.all('drafts')).forEach(d => drafts.set(d.id, normalize(d))); } catch (e) { toast('Non riesco a leggere le bozze salvate'); }
   if (!store.persistent && !PREVIEW) { const b = $('#bannerStorage'); b.hidden = false; b.innerHTML = '<div><b>Questo browser non permette di salvare.</b> Le bozze andrebbero perse alla chiusura: esci dalla navigazione privata o installa l\'app.</div>'; }
   renderList(); refreshMeter();
   const open = ss.get('bv-open'); if (open && drafts.has(open)) openEditor(drafts.get(open), false);
+  if (oauth) {
+    if (oauth.error) {
+      const silentFail = /interaction_required|login_required|consent_required/.test(oauth.error) && oauth.after === 'sync';
+      if (silentFail) startAuth('sync'); else toast(oauth.error === 'access_denied' ? 'Permesso a Google Drive non concesso' : oauth.error === 'state' ? 'Collegamento non riuscito, riprova' : 'Google ha risposto: ' + oauth.error, 5000);
+    } else if (oauth.after === 'sync') {
+      let ids = null; try { ids = JSON.parse(ss.get('bv-sync-ids') || 'null'); } catch (e) {} ss.set('bv-sync-ids', '');
+      exp = { mode: 'select', sel: new Set(), groups: [] }; renderExport(); openSheet('shExport'); syncAll(ids || undefined);
+    } else if (oauth.after === 'settings') { renderSettings(); openSheet('shSettings'); toast('Google Drive collegato'); }
+    else { exp = { mode: 'select', sel: new Set(), groups: [] }; renderExport(); openSheet('shExport'); toast('Google Drive collegato'); }
+  }
   if (!PREVIEW && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

@@ -1,6 +1,6 @@
 /* Bozze per Vinted — service worker: rende l'app disponibile anche senza internet.
    Le bozze non passano mai di qui: stanno in IndexedDB nel telefono. */
-const CACHE = 'bozze-vinted-1.1.2';
+const CACHE = 'bozze-vinted-1.2.0';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'data.js', 'tags.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

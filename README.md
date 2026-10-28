@@ -30,9 +30,23 @@ Al primo salvataggio l'app chiede al sistema di proteggere la memoria dalla puli
 
 Una foto da iPhone pesa circa 2–4 MB. 300 articoli con 15 foto l'uno fanno 10–15 GB: sul telefono deve esserci almeno altrettanto spazio libero. Esportando ed eliminando le bozze già caricate su Vinted liberi spazio.
 
-## Esportare per Claude
+## Inviare le bozze a Claude con un tasto (Google Drive)
 
-1. Tocca l'icona **Esporta** in alto nella lista. Sono già selezionate le bozze *Pronte*.
+Dalla versione 1.2 l'app può caricare da sola le bozze nel tuo Google Drive: tocca **Invia a Claude** (icona in alto) → **Invia tutto**. Ogni bozza pronta diventa una cartella `Bozze Vinted/<referenza>_<titolo>/` con le foto originali (`foto-01.jpg`…), `scheda.json` e `scheda.txt`. Il caricamento mostra l'avanzamento, tiene lo schermo acceso e, se si interrompe, riparte da dove era; le bozze modificate dopo l'invio vengono rimandate (solo la scheda, se le foto non sono cambiate). Nessun server in mezzo: il telefono parla direttamente con Google.
+
+Serve una **chiave Google (OAuth Client ID)**, gratuita, da creare una volta nel proprio account Google:
+
+1. Vai su [console.cloud.google.com](https://console.cloud.google.com), crea un progetto (es. «Bozze Vinted»).
+2. *API e servizi → Libreria*: attiva **Google Drive API**.
+3. *Schermata consenso OAuth* (Google Auth Platform): tipo **Esterno**, nome app «Bozze per Vinted», la tua email come contatto; ambito `https://www.googleapis.com/auth/drive.file` (l'app vede solo i file che crea lei); pubblica l'app (con questo ambito non serve la verifica di Google).
+4. *Credenziali → Crea credenziali → ID client OAuth*, tipo **Applicazione web**. Origine JavaScript autorizzata: l'indirizzo del sito (es. `https://tuo-utente.github.io`); URI di reindirizzamento autorizzato: l'indirizzo completo dell'app con la barra finale (es. `https://tuo-utente.github.io/bozze-per-vinted/`). L'app lo mostra in Impostazioni → Google Drive, con un tasto Copia.
+5. Copia il **Client ID** e incollalo nell'app in Impostazioni → Google Drive → Salva valori → Collega Google Drive.
+
+Il permesso dura circa un'ora e l'app lo rinnova da sola. L'app non vede gli altri file del tuo Drive (ambito `drive.file`). Il token non viene salvato sul disco: resta nella sessione dell'app.
+
+## Esportare come pacchetti ZIP (senza Google)
+
+1. Tocca **Invia a Claude** in alto e apri *Altri modi: pacchetti ZIP*. Sono già selezionate le bozze *Pronte*.
 2. Tocca **Prepara pacchetti**. L'app crea un file ZIP per ogni articolo e li raggruppa in invii da circa 200 MB.
 3. Per ogni invio tocca **Condividi** e salva i file sempre nella stessa cartella: *Salva su File* (iCloud Drive), *Drive* (Google Drive), oppure AirDrop/cavo verso il computer. Dove la condivisione di file ZIP non è disponibile (per esempio su alcuni Android) c'è **Scarica**: i file vanno nella cartella Download.
 4. Copia le **istruzioni per Claude** dalla stessa schermata, aprile in Claude (sul computer, con Claude in Chrome e Vinted già connesso) e indica dove hai salvato i pacchetti.

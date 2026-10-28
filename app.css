@@ -269,6 +269,14 @@ details.tgroup[open] summary::after{transform:rotate(225deg);margin-top:4px}
 details.tgroup summary small{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
 .gnote{font-size:13px;color:var(--muted);padding:0 4px 2px}
 
+/* Invio su Drive */
+.syncbox{background:var(--accent-soft);border-radius:10px;padding:12px 14px;margin:8px 4px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.syncbox.ok{background:var(--ok-soft)}
+.syncbox.warn{background:var(--warn-soft)}
+.syncbox .bar{height:6px;border-radius:3px;background:rgba(0,0,0,.08);overflow:hidden}
+.syncbox .bar i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.syncbox small{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+
 /* Toast */
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(10px);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;z-index:80;opacity:0;transition:opacity .2s,transform .2s;max-width:calc(100% - 32px);text-align:center;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%)}
