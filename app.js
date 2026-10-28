@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -83,9 +83,11 @@ const recBlob = r => r ? (r.blob instanceof Blob ? r.blob : (r.buf ? new Blob([r
 
 /* ---------- Impostazioni ---------- */
 const DEFAULTS = { condition: '', parcel: '', noBrand: '', descTemplate: '', driveClientId: '' };
-let settings = { ...DEFAULTS, ...(window.BV_PRESET || {}) };
+const pick = (o, keys) => Object.fromEntries(keys.filter(k => typeof o[k] === 'string').map(k => [k, o[k]]));
+const PRESET = pick(window.BV_PRESET || {}, Object.keys(DEFAULTS));
+let settings = { ...DEFAULTS, ...PRESET };
 async function loadSettings() {
-  try { const r = await store.get('meta', 'settings'); if (r && r.v) settings = { ...DEFAULTS, ...r.v }; } catch (e) {}
+  try { const r = await store.get('meta', 'settings'); if (r && r.v) { settings = { ...DEFAULTS, ...PRESET, ...r.v }; if (!r.v.driveClientId && PRESET.driveClientId) settings.driveClientId = PRESET.driveClientId; } } catch (e) {}
   // regole passate nel link: #regole=<base64url del JSON>
   const m = location.hash.match(/^#regole=([A-Za-z0-9_\-]+)/);
   if (m) {
@@ -100,7 +102,6 @@ async function loadSettings() {
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   }
 }
-const pick = (o, keys) => Object.fromEntries(keys.filter(k => typeof o[k] === 'string').map(k => [k, o[k]]));
 function rulesFromText(text) {
   const m = String(text || '').match(/#regole=([A-Za-z0-9_\-]+)/); if (!m) return null;
   try { const json = decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))); return { ...DEFAULTS, ...settings, ...pick(JSON.parse(json), Object.keys(DEFAULTS)) }; } catch (e) { return null; }
