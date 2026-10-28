@@ -5,7 +5,7 @@
    pensato per essere caricato su Vinted da Claude (vedi PER-CLAUDE.md). */
 (() => {
 'use strict';
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 const FORMAT = 'bozze-vinted/1';
 const PREVIEW = !!window.BV_PREVIEW;
 
@@ -82,7 +82,7 @@ async function putPhotoAndThumb(photoRec, thumbRec) {
 const recBlob = r => r ? (r.blob instanceof Blob ? r.blob : (r.buf ? new Blob([r.buf], { type: r.type || 'image/jpeg' }) : null)) : null;
 
 /* ---------- Impostazioni ---------- */
-const DEFAULTS = { condition: '', parcel: '', noBrand: '', descTemplate: '', driveClientId: '' };
+const DEFAULTS = { condition: '', parcel: '', noBrand: '', descTemplate: '', driveClientId: '', sendSize: '2048' };
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => typeof o[k] === 'string').map(k => [k, o[k]]));
 const PRESET = pick(window.BV_PRESET || {}, Object.keys(DEFAULTS));
 let settings = { ...DEFAULTS, ...PRESET };
@@ -327,6 +327,12 @@ function toJpeg(im, maxPixels, q, maxSide) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(im, 0, 0, w, h);
   return new Promise((res, rej) => c.toBlob(b => { c.width = c.height = 0; b ? res(b) : rej(new Error('canvas')); }, 'image/jpeg', q));
+}
+async function shrinkForSend(blob, maxSide) {
+  const url = URL.createObjectURL(blob);
+  try { const im = await loadImg(url); if (Math.max(im.naturalWidth, im.naturalHeight) <= maxSide && blob.size < 1.5e6) return null; return await toJpeg(im, 0, 0.9, maxSide); }
+  catch (e) { return null; }
+  finally { URL.revokeObjectURL(url); }
 }
 async function processImage(blobIn, nameHint) {
   let type = (blobIn.type || typeOfName(nameHint || '')).toLowerCase();
@@ -735,20 +741,34 @@ async function syncDraft(d, root) {
   const name = packName(d);
   if (!(await gExists(dr.folderId))) { Object.assign(dr, { folderId: (await gFind(name, root, true)) || await gMkdir(name, root), name, files: {}, jsonId: '', txtId: '', schedaHash: '' }); await persist(d); }
   else if (dr.name !== name) { await gRename(dr.folderId, name); dr.name = name; await persist(d); }
-  const files = d.photos.map((p, i) => ({ ...p, file: 'foto-' + String(i + 1).padStart(2, '0') + '.' + extOf(p.type) }));
+  const reduced = String(settings.sendSize || 'orig') !== 'orig';
+  const files = d.photos.map((p, i) => ({ ...p, file: 'foto-' + String(i + 1).padStart(2, '0') + '.' + (reduced ? 'jpg' : extOf(p.type)) }));
   for (const pid of Object.keys(dr.files)) { if (!d.photos.some(p => p.id === pid)) { await gDelete(dr.files[pid].id); delete dr.files[pid]; await persist(d); } }
+  const sizeMode = String(settings.sendSize || 'orig');
+  const todo = [];
   for (const f of files) {
-    if (sync.stop) throw Object.assign(new Error('stop'), { code: 'stop' });
     const have = dr.files[f.id];
-    if (have && have.name === f.file) continue;
-    if (have) { await gRename(have.id, f.file); have.name = f.file; await persist(d); continue; }
-    sync.cur = `${d.ref || d.title || name} · ${f.file}`; renderSync();
-    const rec = await store.get('photos', f.id); const b = recBlob(rec);
-    if (!b) throw Object.assign(new Error('missing'), { code: 'missing', msg: 'foto mancante nel telefono' });
-    const id = await gUpload(f.file, dr.folderId, b, f.type || 'image/jpeg');
-    dr.files[f.id] = { id, name: f.file }; sync.bytes += b.size; await persist(d); renderSync();
+    if (have && have.name === f.file && (have.size || 'orig') === sizeMode) continue;
+    if (have && (have.size || 'orig') === sizeMode) { await gRename(have.id, f.file); have.name = f.file; await persist(d); continue; }
+    if (have) { await gDelete(have.id); delete dr.files[f.id]; await persist(d); }
+    todo.push(f);
   }
-  const sch = scheda(d, files); sch.drive = { cartella: dr.folderId, nome_cartella: name };
+  let next = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      if (sync.stop) throw Object.assign(new Error('stop'), { code: 'stop' });
+      const f = todo[next++];
+      sync.cur = `${d.ref || d.title || name} · ${f.file}`; renderSync();
+      const rec = await store.get('photos', f.id); let b = recBlob(rec);
+      if (!b) throw Object.assign(new Error('missing'), { code: 'missing', msg: 'foto mancante nel telefono' });
+      let type = f.type || 'image/jpeg';
+      if (sizeMode !== 'orig') { const r = await shrinkForSend(b, parseInt(sizeMode, 10)); if (r) { b = r; type = 'image/jpeg'; } }
+      const id = await gUpload(f.file, dr.folderId, b, type);
+      dr.files[f.id] = { id, name: f.file, size: sizeMode }; sync.bytes += (f.bytes || b.size); await persist(d); renderSync();
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  const sch = scheda(d, files); sch.drive = { cartella: dr.folderId, nome_cartella: name }; sch.foto_inviate = reduced ? `ridotte a ${settings.sendSize} px sul lato lungo (originali nel telefono)` : 'originali';
   const stable = JSON.stringify({ ...sch, esportata: null });
   const hash = fnv(stable);
   if (hash !== dr.schedaHash || !dr.jsonId || !dr.txtId) {
@@ -771,6 +791,7 @@ async function syncAll(ids) {
   if (!list.length) { toast('Niente da inviare: le bozze pronte sono già su Drive'); return; }
   if (!driveConnected()) { ss.set('bv-sync-ids', ids ? JSON.stringify(ids) : ''); startAuth('sync'); return; }
   sync = { running: true, stop: false, total: list.length, done: 0, bytes: 0, bytesTotal: list.reduce((a, d) => a + estSize(d), 0), cur: 'Preparo la cartella…', errors: [], finished: false };
+  sync.fmt = String(settings.sendSize || 'orig') !== 'orig';
   for (const id of [...saveTimers.keys()]) { const d = drafts.get(id); if (d) await persist(d); }
   try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
   renderSync();
@@ -811,12 +832,13 @@ function drivePanelHtml() {
   }
   if (sync.running) {
     const pct = sync.bytesTotal ? Math.min(100, Math.round(sync.bytes / sync.bytesTotal * 100)) : 0;
-    h += `<div class="syncbox"><b>Invio in corso · ${sync.done} di ${sync.total}</b><div class="bar"><i style="width:${pct}%"></i></div><small>${esc(sync.cur)} · ${fmtBytes(sync.bytes)} di ${fmtBytes(sync.bytesTotal)}</small><small>Tieni l'app aperta finché non finisce.</small></div><div style="padding:4px 4px 10px"><button class="btn ghost" id="gStop" style="width:100%">Ferma</button></div>`;
+    h += `<div class="syncbox"><b>Invio in corso · ${sync.done} di ${sync.total}</b><div class="bar"><i style="width:${pct}%"></i></div><small>${esc(sync.cur)}${sync.fmt ? '' : ` · ${fmtBytes(sync.bytes)} di ${fmtBytes(sync.bytesTotal)}`}</small><small>Tieni l'app aperta finché non finisce.</small></div><div style="padding:4px 4px 10px"><button class="btn ghost" id="gStop" style="width:100%">Ferma</button></div>`;
   } else {
     if (sync.finished && (sync.done || sync.errors.length)) h += `<div class="syncbox ${sync.errors.length ? 'warn' : 'ok'}"><b>${sync.stop ? 'Fermato' : sync.errors.length ? 'Finito con problemi' : 'Fatto'}: ${sync.done - sync.errors.length < 0 ? 0 : sync.done - sync.errors.length} inviat${sync.done - sync.errors.length === 1 ? 'a' : 'e'}${sync.errors.length ? `, ${sync.errors.length} no` : ''}</b>${sync.errors.map(e => `<small>${esc(e.title)}: ${esc(e.msg)}</small>`).join('')}</div>`;
     h += `<p>Collegato a Google Drive ✓ · cartella <b>«Bozze Vinted»</b>${sent ? ` · ${sent} bozz${sent === 1 ? 'a' : 'e'} già lì` : ''}</p>`;
     h += `<div style="padding:4px 4px 10px"><button class="btn" id="gSendAll" style="width:100%" ${list.length ? '' : 'disabled'}>${list.length ? `Invia tutto · ${list.length} bozz${list.length === 1 ? 'a' : 'e'} · ${fmtBytes(bytes)}` : 'Tutto già inviato'}</button></div>`;
-    h += `<p class="tip">Vengono inviate le bozze <b>Pronte</b> (tutti i campi compilati) nuove o modificate. Ogni bozza diventa una cartella con le foto originali e la scheda. Se si interrompe, riparti e continua da dove era.</p>`;
+    const red = String(settings.sendSize || 'orig') !== 'orig';
+    h += `<p class="tip">Vengono inviate le bozze <b>Pronte</b> (tutti i campi compilati) nuove o modificate. Ogni bozza diventa una cartella con le foto ${red ? `<b>ridotte a ${esc(settings.sendSize)} px</b> (gli originali restano nel telefono; cambi in Impostazioni)` : '<b>originali</b>'} e la scheda. Se si interrompe, riparti e continua da dove era.</p>`;
   }
   return h;
 }
@@ -833,6 +855,7 @@ async function renderSettings() {
   $('#sParcel').innerHTML = `<option value="">— nessuna —</option>` + PARCELS.map(c => `<option ${settings.parcel === c[0] ? 'selected' : ''}>${esc(c[0])}</option>`).join('');
   $('#sNoBrand').value = settings.noBrand; $('#sTemplate').value = settings.descTemplate;
   $('#sDriveClient').value = settings.driveClientId || '';
+  $('#sSendSize').value = String(settings.sendSize || 'orig');
   $('#sDriveState').textContent = PREVIEW ? 'Non disponibile nell\'anteprima.' : !driveConfigured() ? 'Chiave non impostata.' : driveConnected() ? 'Collegato ✓ (il permesso dura circa un\'ora, poi l\'app lo rinnova da sola).' : 'Chiave impostata, non ancora collegato.';
   $('#sDriveConnect').hidden = !driveConfigured() || driveConnected();
   $('#sDriveDisconnect').hidden = !driveConnected();
@@ -1244,7 +1267,7 @@ function bind() {
   $('#sSave').onclick = async () => {
     const newClient = $('#sDriveClient').value.trim().replace(/\s+/g, '');
     if (newClient !== (settings.driveClientId || '')) saveToken(null);
-    settings = { condition: $('#sCondition').value, parcel: $('#sParcel').value, noBrand: $('#sNoBrand').value.trim(), descTemplate: $('#sTemplate').value, driveClientId: newClient };
+    settings = { condition: $('#sCondition').value, parcel: $('#sParcel').value, noBrand: $('#sNoBrand').value.trim(), descTemplate: $('#sTemplate').value, driveClientId: newClient, sendSize: $('#sSendSize').value };
     try { await store.put('meta', { k: 'settings', v: settings }); toast('Valori salvati: valgono per le nuove bozze'); } catch (e) { toast('Valori non salvati, riprova'); }
     closeSheetNow();
   };
